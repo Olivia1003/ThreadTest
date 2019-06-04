@@ -2,10 +2,6 @@ const { Worker, isMainThread, parentPort, workerData } = require('worker_threads
 const axios = require('axios')
 
 const NAME_LIST = ['Jack', 'Mary', 'Zoe']
-// export function sendRequest(url) {
-//     console.log('worker sendRequest', url)
-// }
-
 
 // worker线程接收主线程通知
 parentPort.on('message', (data) => {

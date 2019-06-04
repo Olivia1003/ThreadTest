@@ -1,70 +1,66 @@
 const { Worker, isMainThread, parentPort, workerData } = require('worker_threads')
 
 class HttpWorker {
-
     constructor(workerPath) {
         this.httpWorker = new Worker(workerPath, { workerData: null }) // worker thread实例
         this.queue = [] // 请求队列
-        this.isFree = true
+        this.isFree = true // 是否空闲，串行处理
     }
 
+    // 将请求push入队列
+    sendRequest(reqUrl, reqParams, processResFun, reponseHandle) {
+        // console.log('main sendRequest', reqUrl, reqParams, processResFun, reponseHandle)
+        this.pushQueue({ reqUrl, reqParams, processResFun, reponseHandle })
+        this.runWorker()
+    }
+
+    // 若空闲，从队列取出一个请求，进行处理
     runWorker() {
         if (this.isFree) {
             const nextReq = this.popQueue()
+            // console.log('pop item:', nextReq)
+            this.isFree = false
             this.handleReqItem(nextReq)
         }
     }
 
-    // main thread 通知 worker thread 发起http请求
-    sendRequest(reqUrl, reqParams, processResFun) {
-        // if (this.isFree) { // worker thread 空闲
-        //     this.handleReqItem({ reqUrl, reqParams, processResFun })
-        //         .then((res) => {
-
-        //         })
-        //         .catch((err) => {
-
-        //         })
-        // } else {
-        //     this.pushQueue({ reqUrl, reqParams, processResFun })
-        // }
-        this.pushQueue({ reqUrl, reqParams, processResFun })
-        this.runWorker()
-    }
-
     // 处理单个http请求，并设置返回结果的监听
     handleReqItem(reqItem) {
-        const { reqUrl, reqParams, processResFun } = reqItem
-        return new Promise((resolve, reject) => {
+        if (reqItem) {
+            console.log('handleReqItem', reqItem)
+            const { reqUrl, reqParams, processResFun, reponseHandle } = reqItem
             this.httpWorker.postMessage({
                 reqUrl,
                 reqParams
             })
             const msgCallback = (res) => {
-                console.log('from worker msgCallback', res)
+                // console.log('from worker msgCallback', res)
                 const resData = processResFun(res)
+                reponseHandle(resData)
                 this.cleanUp()
-                resolve(resData)
             }
             const errorCallback = (err) => {
                 console.log('from worker errorCallback', err)
                 this.cleanUp()
-                reject(err)
             }
             this.httpWorker.on('message', msgCallback)
             this.httpWorker.on('error', errorCallback)
-        })
+        }
     }
 
-    // 清除监听器，用于下次调用
+    // 清除监听器，设置空闲状态
     cleanUp() {
         console.log('worker cleanUp')
         this.httpWorker.removeAllListeners('message')
         this.httpWorker.removeAllListeners('error')
+
+        this.isFree = true
+        this.runWorker()
     }
 
     pushQueue(item) {
-        this.queue.concat(item)
+        this.queue.push(item)
+        // console.log('push into queue:', item)
     }
 
     popQueue() {
@@ -73,47 +69,6 @@ class HttpWorker {
         }
         return null
     }
-
-
-    // public run(getData: () => T) {
-    //     return new Promise((resolve, reject) => {
-
-    //         const callback = (error, result) => {
-    //             if (error) {
-    //                 return reject(error);
-    //             }
-    //             return resolve(result);
-    //         }
-
-    //         this.runWorker(getData, callback);
-    //     });
-    // }
-
-    // private async runWorker(getData, callback) {
-    //     const worker = this.httpWorker
-
-    //     const messageCallback = (result: N) => {
-    //         callback(null, result)
-    //         cleanUp();
-    //     };
-
-    //     const errorCallback = (error: any) => {
-    //         callback(error)
-    //         cleanUp();
-    //     };
-
-    //     const cleanUp = () => {
-    //         worker.removeAllListeners('message');
-    //         worker.removeAllListeners('error');
-
-    //         this.runWorker(workerId, this.queue.shift());
-    //     };
-
-    //     worker.once('message', messageCallback);
-    //     worker.once('error', errorCallback);
-
-    //     worker.postMessage(await queueItem.getData());
-    // }
 
 }
 
