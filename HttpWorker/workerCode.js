@@ -2,33 +2,35 @@ const { Worker, isMainThread, parentPort, workerData } = require('worker_threads
 const axios = require('axios')
 
 const NAME_LIST = ['Jack', 'Mary', 'Zoe']
-// export function sendRequest(url) {
-//     console.log('worker sendRequest', url)
-// }
 
-
-// worker线程接收主线程通知
+// worker thread 接收主线程通知
 parentPort.on('message', (data) => {
     console.log('worker get msg', data)
-    handleRequest(data.reqUrl, data.reqParams)
-        .then((resData) => {
-            console.log('worker get resData', resData)
-            parentPort.postMessage({
-                resData
-            });
-        })
-        .catch((err) => {
-            console.log('worker get resData err', err)
-        })
+    if (data.type == 'request') {
+        handleRequest(data.reqUrl, data.reqParams)
+            .then((resData) => {
+                console.log('worker get resData', resData)
+                parentPort.postMessage({
+                    resData
+                });
+            })
+            .catch((err) => {
+                console.log('worker get resData err', err)
+            })
+    } else if (data.type == 'exit') {
+        process.exit()
+    }
+
 })
 
-// worker线程发起http请求，并返回原始数据
+// worker thread 发起http请求，并返回原始数据
 async function handleRequest(url, params) {
     return new Promise((resolve, reject) => {
         axios.get(url, params)
             .then(function (response) {
                 console.log('axios res', response.status)
                 // resolve(response)
+                // 模拟 http 请求
                 const id = params.id
                 const name = NAME_LIST[id]
                 resolve({ name })
